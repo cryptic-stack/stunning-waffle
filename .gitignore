@@ -1,0 +1,17 @@
+node_modules/
+.pnpm-store/
+dist/
+coverage/
+.vite/
+.DS_Store
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+*.pyc
+*.pyo
+*.pyd
+.env
+infra/compose/.env
+pgdata/
