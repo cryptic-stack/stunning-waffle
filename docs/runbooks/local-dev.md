@@ -3,7 +3,7 @@
 ## Start the stack
 
 ```bash
-docker compose -f infra/compose/docker-compose.yml up --build
+bash infra/scripts/dev-up.sh
 ```
 
 Windows PowerShell:
@@ -12,10 +12,16 @@ Windows PowerShell:
 powershell -ExecutionPolicy Bypass -File infra/scripts/dev-up.ps1
 ```
 
+These scripts now:
+
+- prebuild all worker images up front
+- set `AUTH_MODE=dev` for a local-only workflow
+- start the Compose stack after the worker images are ready
+
 ## Start the live-reload frontend
 
 ```bash
-docker compose -f infra/compose/docker-compose.yml -f infra/compose/docker-compose.dev.yml up --build frontend api
+bash infra/scripts/dev-up-live.sh
 ```
 
 Windows PowerShell:
@@ -25,6 +31,13 @@ powershell -ExecutionPolicy Bypass -File infra/scripts/dev-up-live.ps1
 ```
 
 The development override runs the frontend with Vite on port `3000` and keeps the runtime nginx image tag separate so it does not overwrite the production-style container image.
+
+If you prefer running Compose manually, prebuild workers first:
+
+```bash
+bash infra/scripts/prebuild-workers.sh
+AUTH_MODE=dev docker compose -f infra/compose/docker-compose.yml up --build
+```
 
 ## Validate services
 
@@ -37,6 +50,7 @@ The development override runs the frontend with Vite on port `3000` and keeps th
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/sessions \
+  -H 'X-User-Id: local-dev-user' \
   -H 'content-type: application/json' \
   -d '{
     "browser": "chromium",
@@ -83,7 +97,7 @@ powershell -ExecutionPolicy Bypass -File infra/scripts/dev-down.ps1
 
 - The scaffold is intentionally container-first because the host may not have Node.js or Python installed.
 - `infra/compose/docker-compose.dev.yml` swaps the frontend container to the dev target with Vite.
-- `AUTH_MODE=dev` is convenient locally; switch to `AUTH_MODE=header` when testing identity-proxy behavior.
+- `AUTH_MODE=header` is the safe default. The dev-up scripts explicitly switch to `AUTH_MODE=dev` so the local UI can work without an auth proxy.
 - Set `AUTOMATION_API_KEYS_JSON` when you want to exercise the bearer-based automation API locally.
 - For local WebRTC relay, keep `TURN_PUBLIC_HOST=localhost` and `TURN_INTERNAL_HOST=coturn` unless you are testing a different edge host.
 - On Docker Desktop, set `TURN_EXTERNAL_IP` to the host machine's reachable IPv4 address so coturn advertises relay candidates that both the browser and worker container can reach.

@@ -11,8 +11,8 @@ from app.auth import (
     AuthenticatedUser,
     auth_headers,
     authorization_header,
+    require_authenticated_user,
     resolve_api_key_user,
-    resolve_user,
 )
 from app.config import Settings
 from app.db import get_db_session
@@ -59,16 +59,16 @@ def get_current_user(
     headers: tuple[str | None, str | None, str | None] = Depends(auth_headers),
     settings: Settings = Depends(get_settings),
 ) -> AuthenticatedUser:
-    return resolve_user(settings, *headers)
+    return require_authenticated_user(settings, *headers)
 
 
 def get_optional_current_user(
     headers: tuple[str | None, str | None, str | None] = Depends(auth_headers),
     settings: Settings = Depends(get_settings),
 ) -> AuthenticatedUser | None:
-    if settings.auth_mode == "header" and not headers[0]:
+    if settings.auth_mode != "dev" and not headers[0]:
         return None
-    return resolve_user(settings, *headers)
+    return require_authenticated_user(settings, *headers)
 
 
 def get_automation_user(

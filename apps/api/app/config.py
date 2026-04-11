@@ -1,5 +1,6 @@
 import json
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -14,7 +15,7 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite:///./browserlab.db"
     redis_url: str = "redis://localhost:6379/0"
-    auth_mode: str = "dev"
+    auth_mode: Literal["dev", "header"] = "header"
     session_launch_mode: str = "stub"
     worker_image: str = "foss-browserlab-chromium-worker:latest"
     worker_build_context: str | None = None
@@ -45,6 +46,8 @@ class Settings(BaseSettings):
     worker_read_only_rootfs: bool = True
     worker_tmpfs_size_mb: int = 512
     worker_allow_outbound_network: bool = True
+    worker_allow_runtime_image_resolution: bool = False
+    worker_verify_images_on_startup: bool = True
     enable_host_local_targets: bool = True
     host_gateway_alias: str = "host.docker.internal"
     host_local_target_hostnames: str = "localhost,127.0.0.1,::1"

@@ -111,8 +111,8 @@ Thin signaling socket for `offer`, `answer`, `ice-candidate`, `control`, and `er
 
 The API now supports two auth adapter modes:
 
-- `AUTH_MODE=dev`: fall back to the local development user when headers are absent
 - `AUTH_MODE=header`: require the configured identity headers, which fits future oauth2-proxy style deployments
+- `AUTH_MODE=dev`: fall back to the local development user when headers are absent
 
 The header adapter resolves users from:
 
@@ -121,6 +121,8 @@ The header adapter resolves users from:
 - `X-User-Name`
 
 Worker connections never use user headers. They authenticate with the session-scoped worker token.
+
+`AUTH_MODE=header` is now the default so new deployments fail closed unless local development explicitly opts into `dev`.
 
 ## Automation auth
 
@@ -139,3 +141,12 @@ Configure bearer keys with `AUTOMATION_API_KEYS_JSON`, for example:
 ```
 
 Viewer peers created through the automation surface connect to signaling with the returned `viewer_token` query parameter instead of user headers.
+
+## Worker image policy
+
+Worker images are now expected to exist before the API starts.
+
+- `WORKER_VERIFY_IMAGES_ON_STARTUP=true` makes the API fail fast if any configured worker image is missing
+- `WORKER_ALLOW_RUNTIME_IMAGE_RESOLUTION=false` keeps session creation from building or pulling worker images inside the request path
+
+For local development, use the prebuild scripts in `infra/scripts/` before starting the stack.

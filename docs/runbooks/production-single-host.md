@@ -19,8 +19,10 @@
 - Deploy with Docker Compose for the initial milestone
 - Keep Postgres data on a named volume
 - Provide TURN credentials through environment-managed secrets
-- Set `AUTH_MODE=header` when placing the API behind an identity-aware proxy
-- Rebuild the Chromium worker image before first launch on a new host
+- Keep `AUTH_MODE=header` behind an identity-aware proxy
+- Prebuild all worker images before starting the API on a new host
+- Keep `WORKER_VERIFY_IMAGES_ON_STARTUP=true` so missing worker artifacts fail fast during boot
+- Keep `WORKER_ALLOW_RUNTIME_IMAGE_RESOLUTION=false` so session creation never hides image build/pull latency in the request path
 
 ## pfSense / firewall checklist
 

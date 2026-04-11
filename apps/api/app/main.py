@@ -104,10 +104,17 @@ async def lifespan(application: FastAPI):
             host_gateway_alias=(
                 settings.host_gateway_alias if settings.enable_host_local_targets else None
             ),
+            allow_runtime_image_resolution=settings.worker_allow_runtime_image_resolution,
         )
         if settings.session_launch_mode == "docker"
         else StubSessionLauncher()
     )
+    if (
+        settings.session_launch_mode == "docker"
+        and settings.worker_verify_images_on_startup
+        and isinstance(application.state.launcher, DockerSessionLauncher)
+    ):
+        application.state.launcher.validate_worker_images()
     application.state.sweeper = SessionSweeper(
         session_factory=session_factory,
         redis_store=application.state.redis_store,

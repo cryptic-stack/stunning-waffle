@@ -24,11 +24,13 @@ services:
     ports:
       - "8000:8000"
     environment:
-      AUTH_MODE: ${AUTH_MODE:-dev}
+      AUTH_MODE: ${AUTH_MODE:-header}
       AUTOMATION_API_KEYS_JSON: ${AUTOMATION_API_KEYS_JSON:-{}}
       REDIS_URL: redis://redis:6379/0
       DATABASE_URL: postgresql://browserlab:browserlab@db:5432/browserlab
       SESSION_LAUNCH_MODE: docker
+      WORKER_ALLOW_RUNTIME_IMAGE_RESOLUTION: ${WORKER_ALLOW_RUNTIME_IMAGE_RESOLUTION:-false}
+      WORKER_VERIFY_IMAGES_ON_STARTUP: ${WORKER_VERIFY_IMAGES_ON_STARTUP:-true}
       WORKER_IMAGE: ${WORKER_IMAGE:-foss-browserlab-chromium-worker:latest}
       WORKER_BUILD_CONTEXT: /workspace
       WORKER_DOCKERFILE: images/chromium/Dockerfile
@@ -131,7 +133,7 @@ services:
     volumes:
       - ../coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
     healthcheck:
-      test: ["CMD-SHELL", "pidof turnserver > /dev/null || exit 1"]
+      test: ["CMD-SHELL", "pidof turnserver >/dev/null || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3

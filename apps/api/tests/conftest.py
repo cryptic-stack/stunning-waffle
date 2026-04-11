@@ -19,6 +19,7 @@ def test_app(tmp_path: Path):
     settings = Settings(
         database_url=f"sqlite:///{database_path}",
         redis_url="redis://unused",
+        auth_mode="dev",
         session_launch_mode="stub",
         default_user_id="user-1",
         default_user_email="user-1@example.com",
@@ -33,7 +34,7 @@ def test_app(tmp_path: Path):
     )
     app = create_app(settings)
 
-    with TestClient(app) as client:
+    with TestClient(app, headers={"X-User-Id": "user-1"}) as client:
         app.state.redis_client = fakeredis.FakeStrictRedis(decode_responses=True)
         app.state.redis_store.client = app.state.redis_client
         app.state.launcher = StubSessionLauncher()

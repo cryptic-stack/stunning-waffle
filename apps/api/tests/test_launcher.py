@@ -87,6 +87,29 @@ class DummyDockerClient:
     def __init__(self) -> None:
         self.api = DummyApi()
         self.containers = DummyContainers()
+        self.images = DummyImages()
+
+
+class DummyImages:
+    def __init__(self) -> None:
+        self.available: set[str] = set()
+        self.build_calls: list[dict] = []
+        self.pull_calls: list[str] = []
+
+    def get(self, image: str):
+        if image not in self.available:
+            raise launcher_module.docker.errors.ImageNotFound("missing")
+        return {"image": image}
+
+    def build(self, *, path: str, dockerfile: str, tag: str, rm: bool) -> None:
+        self.build_calls.append(
+            {"path": path, "dockerfile": dockerfile, "tag": tag, "rm": rm}
+        )
+        self.available.add(tag)
+
+    def pull(self, image: str) -> None:
+        self.pull_calls.append(image)
+        self.available.add(image)
 
 
 def test_upload_file_streams_content_into_exec(monkeypatch) -> None:
@@ -295,13 +318,14 @@ def test_desktop_workers_keep_no_new_privileges_and_desktop_state(monkeypatch) -
     assert client.containers.run_calls[0]["environment"]["SESSION_DESKTOP_PROFILE"] == "ubuntu-xfce"
     assert (
         client.containers.run_calls[0]["environment"]["ICEAUTHORITY"]
-        == "/run/user/1000/.ICEauthority"
+        == "/run/user/1001/.ICEauthority"
     )
     assert "/home/browserlab/.local/share" in client.containers.run_calls[0]["tmpfs"]
     assert (
-        "uid=1000,gid=1000"
+        "uid=1001,gid=1001"
         in client.containers.run_calls[0]["tmpfs"]["/home/browserlab/Desktop"]
     )
+    assert "/run/user/1001" in client.containers.run_calls[0]["tmpfs"]
 
 
 def test_kali_desktop_workers_use_browserlab_home_contract(monkeypatch) -> None:
@@ -339,7 +363,7 @@ def test_kali_desktop_workers_use_browserlab_home_contract(monkeypatch) -> None:
     run_call = client.containers.run_calls[0]
     assert run_call["user"] == "browserlab"
     assert run_call["security_opt"] == []
-    assert run_call["cap_add"] == ["SETUID", "SETGID", "AUDIT_WRITE"]
+    assert run_call["cap_add"] == ["SETUID", "SETGID", "AUDIT_WRITE", "NET_RAW"]
     assert run_call["labels"]["browserlab.home_dir"] == "/home/browserlab"
     assert run_call["environment"]["HOME"] == "/home/browserlab"
     assert run_call["environment"]["SESSION_PROFILE_SEED_DIR"] == ""
@@ -467,3 +491,66 @@ def test_capture_screenshot_returns_png_bytes(monkeypatch) -> None:
     assert screenshot.filename == "sess_test-screenshot.png"
     assert screenshot.content_type == "image/png"
     assert screenshot.content.startswith(b"\x89PNG\r\n\x1a\n")
+
+
+def test_missing_worker_image_requires_prebuild_when_runtime_resolution_disabled(
+    monkeypatch,
+) -> None:
+    client = DummyDockerClient()
+    monkeypatch.setattr(launcher_module.docker, "from_env", lambda: client)
+
+    launcher = DockerSessionLauncher(
+        worker_definitions={
+            "chromium": WorkerDefinition(
+                image="worker:latest",
+                build_context="/workspace",
+                dockerfile="images/chromium/Dockerfile",
+            )
+        },
+        command=None,
+        network=None,
+        turn_public_host="localhost",
+        turn_internal_host="coturn",
+        turn_username="browserlab",
+        turn_password="change-me",
+    )
+
+    try:
+        launcher.validate_worker_images()
+    except RuntimeError as exc:
+        assert "Prebuild worker images" in str(exc)
+    else:  # pragma: no cover - explicit assertion
+        raise AssertionError("Expected missing worker image validation to fail")
+
+
+def test_missing_worker_image_can_be_built_when_runtime_resolution_enabled(monkeypatch) -> None:
+    client = DummyDockerClient()
+    monkeypatch.setattr(launcher_module.docker, "from_env", lambda: client)
+
+    launcher = DockerSessionLauncher(
+        worker_definitions={
+            "chromium": WorkerDefinition(
+                image="worker:latest",
+                build_context="/workspace",
+                dockerfile="images/chromium/Dockerfile",
+            )
+        },
+        command=None,
+        network=None,
+        turn_public_host="localhost",
+        turn_internal_host="coturn",
+        turn_username="browserlab",
+        turn_password="change-me",
+        allow_runtime_image_resolution=True,
+    )
+
+    launcher.validate_worker_images()
+
+    assert client.images.build_calls == [
+        {
+            "path": "/workspace",
+            "dockerfile": "images/chromium/Dockerfile",
+            "tag": "worker:latest",
+            "rm": True,
+        }
+    ]

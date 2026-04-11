@@ -20,6 +20,7 @@ function New-SmokeSession {
   return Invoke-RestMethod `
     -Uri "http://localhost:8000/api/v1/sessions" `
     -Method Post `
+    -Headers @{ "X-User-Id" = "smoke-user" } `
     -ContentType "application/json" `
     -Body $body
 }
@@ -38,7 +39,7 @@ foreach ($browser in @("chromium", "firefox")) {
   Write-Output ("{0} create response: {1}" -f $browser, ($session | ConvertTo-Json -Compress))
 
   Start-Sleep -Seconds 6
-  $state = Invoke-RestMethod -Uri ("http://localhost:8000/api/v1/sessions/{0}" -f $session.session_id)
+  $state = Invoke-RestMethod -Uri ("http://localhost:8000/api/v1/sessions/{0}" -f $session.session_id) -Headers @{ "X-User-Id" = "smoke-user" }
   Write-Output ("{0} state: {1}" -f $browser, ($state | ConvertTo-Json -Compress))
 
   if ($state.status -ne "active") {
@@ -48,17 +49,19 @@ foreach ($browser in @("chromium", "firefox")) {
   $clipboard = Invoke-RestMethod `
     -Uri ("http://localhost:8000/api/v1/sessions/{0}/clipboard" -f $session.session_id) `
     -Method Post `
+    -Headers @{ "X-User-Id" = "smoke-user" } `
     -ContentType "application/json" `
     -Body '{"text":"smoke clipboard"}'
   Write-Output ("{0} clipboard: {1}" -f $browser, ($clipboard | ConvertTo-Json -Compress))
 
   $tempFile = Join-Path $env:TEMP ("{0}-smoke.txt" -f $browser)
   Set-Content -Path $tempFile -Value ("upload for {0}" -f $browser) -NoNewline
-  $upload = curl.exe -s -X POST -F "upload=@$tempFile;type=text/plain" ("http://localhost:8000/api/v1/sessions/{0}/file-upload" -f $session.session_id)
+  $upload = curl.exe -s -X POST -H "X-User-Id: smoke-user" -F "upload=@$tempFile;type=text/plain" ("http://localhost:8000/api/v1/sessions/{0}/file-upload" -f $session.session_id)
   Remove-Item -LiteralPath $tempFile -Force
   Write-Output ("{0} upload: {1}" -f $browser, $upload)
 
   Invoke-RestMethod `
     -Uri ("http://localhost:8000/api/v1/sessions/{0}" -f $session.session_id) `
-    -Method Delete | Out-Null
+    -Method Delete `
+    -Headers @{ "X-User-Id" = "smoke-user" } | Out-Null
 }

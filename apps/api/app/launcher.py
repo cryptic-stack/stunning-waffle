@@ -241,6 +241,7 @@ class DockerSessionLauncher(SessionLauncher):
         tmpfs_size_mb: int = 512,
         allow_outbound_network: bool = True,
         host_gateway_alias: str | None = None,
+        allow_runtime_image_resolution: bool = False,
     ) -> None:
         self.client = docker.from_env()
         self.worker_definitions = worker_definitions
@@ -258,6 +259,7 @@ class DockerSessionLauncher(SessionLauncher):
         self.tmpfs_size_mb = tmpfs_size_mb
         self.allow_outbound_network = allow_outbound_network
         self.host_gateway_alias = host_gateway_alias
+        self.allow_runtime_image_resolution = allow_runtime_image_resolution
 
     def launch(
         self,
@@ -277,6 +279,7 @@ class DockerSessionLauncher(SessionLauncher):
         downloads_dir = home_dir / "Downloads"
         runtime_user = _runtime_user(runtime_name)
         runtime_uid, runtime_gid = _runtime_uid_gid(runtime_name)
+        runtime_dir = f"/run/user/{runtime_uid}"
         container = self.client.containers.run(
             worker_definition.image,
             command=self.command or None,
@@ -320,8 +323,8 @@ class DockerSessionLauncher(SessionLauncher):
                 "SESSION_HOMEPAGE_URL": target_url,
                 "API_BASE_URL": "http://api:8000",
                 "HOME": str(home_dir),
-                "XDG_RUNTIME_DIR": "/run/user/1000",
-                "ICEAUTHORITY": "/run/user/1000/.ICEauthority",
+                "XDG_RUNTIME_DIR": runtime_dir,
+                "ICEAUTHORITY": f"{runtime_dir}/.ICEauthority",
                 "SESSION_DOWNLOADS_DIR": str(downloads_dir),
                 "SESSION_PROFILE_SEED_DIR": _runtime_profile_seed_dir(runtime_name),
                 "SESSION_PROFILE_SEED_ALLOWLIST": _runtime_profile_seed_allowlist(runtime_name),
@@ -337,6 +340,10 @@ class DockerSessionLauncher(SessionLauncher):
             container_id=container.id,
             metadata={"mode": "docker", "image": worker_definition.image},
         )
+
+    def validate_worker_images(self) -> None:
+        for worker_definition in self.worker_definitions.values():
+            self._ensure_image(worker_definition)
 
     def terminate(self, container_id: str | None) -> None:
         if not container_id:
@@ -522,6 +529,12 @@ class DockerSessionLauncher(SessionLauncher):
         except docker.errors.ImageNotFound:
             pass
 
+        if not self.allow_runtime_image_resolution:
+            raise RuntimeError(
+                "Missing worker image "
+                f"{worker_definition.image}. Prebuild worker images before starting the API."
+            )
+
         if worker_definition.build_context and worker_definition.dockerfile:
             self.client.images.build(
                 path=worker_definition.build_context,
@@ -556,7 +569,7 @@ class DockerSessionLauncher(SessionLauncher):
             str(home_dir / ".mozilla"): f"rw,nosuid,nodev,size=128m,{user_owned},mode=700",
             str(home_dir / "Desktop"): f"rw,nosuid,nodev,size=64m,{user_owned},mode=755",
             str(home_dir / "Downloads"): f"rw,nosuid,nodev,size=256m,{user_owned},mode=755",
-            "/run/user/1000": f"rw,nosuid,nodev,size=32m,{user_owned},mode=700",
+            f"/run/user/{runtime_uid}": f"rw,nosuid,nodev,size=32m,{user_owned},mode=700",
         }
 
     @staticmethod
@@ -579,7 +592,7 @@ class DockerSessionLauncher(SessionLauncher):
     @staticmethod
     def _cap_additions(runtime_name: str) -> list[str]:
         if runtime_name == "kali-xfce":
-            return ["SETUID", "SETGID", "AUDIT_WRITE"]
+            return ["SETUID", "SETGID", "AUDIT_WRITE", "NET_RAW"]
         return []
 
     @staticmethod
@@ -599,6 +612,8 @@ def _runtime_user(runtime_name: str) -> str:
 
 
 def _runtime_uid_gid(runtime_name: str) -> tuple[int, int]:
+    if runtime_name == "ubuntu-xfce":
+        return (1001, 1001)
     return (BROWSERLAB_UID, BROWSERLAB_GID)
 
 

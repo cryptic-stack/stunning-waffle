@@ -5,4 +5,9 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+if (-not $env:AUTH_MODE) {
+  $env:AUTH_MODE = "dev"
+}
+
+powershell -ExecutionPolicy Bypass -File infra/scripts/prebuild-workers.ps1
 docker compose -f infra/compose/docker-compose.yml -f infra/compose/docker-compose.dev.yml up --build -d frontend api @ComposeArgs

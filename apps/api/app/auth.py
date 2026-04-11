@@ -18,22 +18,37 @@ def resolve_user(
     email: str | None,
     display_name: str | None,
 ) -> AuthenticatedUser:
-    if settings.auth_mode == "header":
-        if not user_id:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Authenticated user header is required",
-            )
+    if settings.auth_mode == "dev":
         return AuthenticatedUser(
-            user_id=user_id,
-            email=email,
-            display_name=display_name,
+            user_id=user_id or settings.default_user_id,
+            email=email or settings.default_user_email,
+            display_name=display_name or settings.default_user_display_name,
+        )
+
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authenticated user header is required",
         )
     return AuthenticatedUser(
-        user_id=user_id or settings.default_user_id,
-        email=email or settings.default_user_email,
-        display_name=display_name or settings.default_user_display_name,
+        user_id=user_id,
+        email=email,
+        display_name=display_name,
     )
+
+
+def require_authenticated_user(
+    settings: Settings,
+    user_id: str | None,
+    email: str | None,
+    display_name: str | None,
+) -> AuthenticatedUser:
+    if not user_id and settings.auth_mode != "dev":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authenticated user header is required",
+        )
+    return resolve_user(settings, user_id, email, display_name)
 
 
 def auth_headers(

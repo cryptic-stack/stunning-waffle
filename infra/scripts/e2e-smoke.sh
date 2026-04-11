@@ -12,6 +12,7 @@ printf 'rtc: %s\n' "${rtc_config}"
 create_session() {
   local browser="$1"
   curl -fsS -X POST http://localhost:8000/api/v1/sessions \
+    -H 'X-User-Id: smoke-user' \
     -H 'content-type: application/json' \
     -d "{
       \"browser\": \"${browser}\",
@@ -33,6 +34,7 @@ upload_file() {
   temp_file="$(mktemp)"
   printf 'browserlab upload smoke' >"${temp_file}"
   curl -fsS -X POST "http://localhost:8000/api/v1/sessions/${session_id}/file-upload" \
+    -H 'X-User-Id: smoke-user' \
     -F "upload=@${temp_file};type=text/plain"
   rm -f "${temp_file}"
 }
@@ -44,7 +46,7 @@ for browser in chromium firefox; do
   printf '%s create response: %s\n' "${browser}" "${create_response}"
 
   sleep 6
-  session_state="$(curl -fsS "http://localhost:8000/api/v1/sessions/${session_id}")"
+  session_state="$(curl -fsS -H 'X-User-Id: smoke-user' "http://localhost:8000/api/v1/sessions/${session_id}")"
   printf '%s state: %s\n' "${browser}" "${session_state}"
 
   if ! printf '%s' "${session_state}" | python -c "import json,sys; assert json.load(sys.stdin)['status'] == 'active'"; then
@@ -53,6 +55,7 @@ for browser in chromium firefox; do
   fi
 
   clipboard_response="$(curl -fsS -X POST "http://localhost:8000/api/v1/sessions/${session_id}/clipboard" \
+    -H 'X-User-Id: smoke-user' \
     -H 'content-type: application/json' \
     -d '{"text":"smoke clipboard"}')"
   printf '%s clipboard: %s\n' "${browser}" "${clipboard_response}"
@@ -60,5 +63,5 @@ for browser in chromium firefox; do
   upload_response="$(upload_file "${session_id}")"
   printf '%s upload: %s\n' "${browser}" "${upload_response}"
 
-  curl -fsS -X DELETE "http://localhost:8000/api/v1/sessions/${session_id}" >/dev/null
+  curl -fsS -X DELETE -H 'X-User-Id: smoke-user' "http://localhost:8000/api/v1/sessions/${session_id}" >/dev/null
 done

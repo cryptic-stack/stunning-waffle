@@ -1,13 +1,16 @@
 COMPOSE_FILE=infra/compose/docker-compose.yml
 DEV_COMPOSE_FILE=infra/compose/docker-compose.dev.yml
 
-.PHONY: dev-up dev-down dev-up-live test lint typecheck build smoke
+.PHONY: prebuild-workers dev-up dev-down dev-up-live test lint typecheck build smoke
+
+prebuild-workers:
+	bash infra/scripts/prebuild-workers.sh
 
 dev-up:
-	docker compose -f $(COMPOSE_FILE) up --build -d
+	bash infra/scripts/dev-up.sh
 
 dev-up-live:
-	docker compose -f $(COMPOSE_FILE) -f $(DEV_COMPOSE_FILE) up --build -d frontend api
+	bash infra/scripts/dev-up-live.sh
 
 dev-down:
 	docker compose -f $(COMPOSE_FILE) down --remove-orphans
