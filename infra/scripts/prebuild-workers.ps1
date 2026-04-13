@@ -1,5 +1,20 @@
 $ErrorActionPreference = "Stop"
 
+function Invoke-CheckedCommand {
+  param(
+    [Parameter(Mandatory = $true)]
+    [scriptblock]$Command,
+
+    [Parameter(Mandatory = $true)]
+    [string]$FailureMessage
+  )
+
+  & $Command
+  if ($LASTEXITCODE -ne 0) {
+    throw ("{0} (exit code {1})" -f $FailureMessage, $LASTEXITCODE)
+  }
+}
+
 $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 Push-Location $repoRoot
 
@@ -16,7 +31,9 @@ try {
 
   foreach ($image in $images) {
     Write-Host ("building {0}..." -f $image.Tag)
-    docker build -t $image.Tag -f $image.Dockerfile .
+    Invoke-CheckedCommand `
+      -FailureMessage ("Failed building {0}" -f $image.Tag) `
+      -Command { docker build -t $image.Tag -f $image.Dockerfile . }
   }
 }
 finally {

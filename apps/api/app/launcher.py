@@ -229,6 +229,7 @@ class DockerSessionLauncher(SessionLauncher):
         worker_definitions: dict[str, WorkerDefinition],
         command: str | None,
         network: str | None,
+        docker_host: str | None,
         turn_public_host: str,
         turn_internal_host: str,
         turn_username: str,
@@ -243,7 +244,11 @@ class DockerSessionLauncher(SessionLauncher):
         host_gateway_alias: str | None = None,
         allow_runtime_image_resolution: bool = False,
     ) -> None:
-        self.client = docker.from_env()
+        self.client = (
+            docker.DockerClient(base_url=docker_host)
+            if docker_host
+            else docker.from_env()
+        )
         self.worker_definitions = worker_definitions
         self.command = command
         self.network = network
@@ -592,7 +597,7 @@ class DockerSessionLauncher(SessionLauncher):
     @staticmethod
     def _cap_additions(runtime_name: str) -> list[str]:
         if runtime_name == "kali-xfce":
-            return ["SETUID", "SETGID", "AUDIT_WRITE", "NET_RAW"]
+            return ["SETUID", "SETGID", "AUDIT_WRITE", "NET_RAW", "NET_ADMIN", "NET_BIND_SERVICE"]
         return []
 
     @staticmethod

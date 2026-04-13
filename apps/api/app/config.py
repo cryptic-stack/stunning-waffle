@@ -15,6 +15,7 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite:///./browserlab.db"
     redis_url: str = "redis://localhost:6379/0"
+    docker_host: str | None = None
     auth_mode: Literal["dev", "header"] = "header"
     session_launch_mode: str = "stub"
     worker_image: str = "foss-browserlab-chromium-worker:latest"

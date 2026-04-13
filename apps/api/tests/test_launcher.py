@@ -126,6 +126,7 @@ def test_upload_file_streams_content_into_exec(monkeypatch) -> None:
         },
         command=None,
         network=None,
+        docker_host=None,
         turn_public_host="localhost",
         turn_internal_host="coturn",
         turn_username="browserlab",
@@ -174,6 +175,7 @@ def test_launch_adds_host_gateway_alias(monkeypatch) -> None:
         },
         command=None,
         network="browserlab",
+        docker_host=None,
         turn_public_host="localhost",
         turn_internal_host="coturn",
         turn_username="browserlab",
@@ -223,6 +225,7 @@ def test_non_chromium_workers_keep_no_new_privileges(monkeypatch) -> None:
         },
         command=None,
         network="browserlab",
+        docker_host=None,
         turn_public_host="localhost",
         turn_internal_host="coturn",
         turn_username="browserlab",
@@ -259,6 +262,7 @@ def test_chromium_family_workers_keep_relaxed_seccomp(monkeypatch) -> None:
         },
         command=None,
         network="browserlab",
+        docker_host=None,
         turn_public_host="localhost",
         turn_internal_host="coturn",
         turn_username="browserlab",
@@ -294,6 +298,7 @@ def test_desktop_workers_keep_no_new_privileges_and_desktop_state(monkeypatch) -
         },
         command=None,
         network="browserlab",
+        docker_host=None,
         turn_public_host="localhost",
         turn_internal_host="coturn",
         turn_username="browserlab",
@@ -342,6 +347,7 @@ def test_kali_desktop_workers_use_browserlab_home_contract(monkeypatch) -> None:
         },
         command=None,
         network="browserlab",
+        docker_host=None,
         turn_public_host="localhost",
         turn_internal_host="coturn",
         turn_username="browserlab",
@@ -363,7 +369,14 @@ def test_kali_desktop_workers_use_browserlab_home_contract(monkeypatch) -> None:
     run_call = client.containers.run_calls[0]
     assert run_call["user"] == "browserlab"
     assert run_call["security_opt"] == []
-    assert run_call["cap_add"] == ["SETUID", "SETGID", "AUDIT_WRITE", "NET_RAW"]
+    assert run_call["cap_add"] == [
+        "SETUID",
+        "SETGID",
+        "AUDIT_WRITE",
+        "NET_RAW",
+        "NET_ADMIN",
+        "NET_BIND_SERVICE",
+    ]
     assert run_call["labels"]["browserlab.home_dir"] == "/home/browserlab"
     assert run_call["environment"]["HOME"] == "/home/browserlab"
     assert run_call["environment"]["SESSION_PROFILE_SEED_DIR"] == ""
@@ -388,6 +401,7 @@ def test_ubuntu_desktop_workers_keep_no_new_privileges(monkeypatch) -> None:
         },
         command=None,
         network="browserlab",
+        docker_host=None,
         turn_public_host="localhost",
         turn_internal_host="coturn",
         turn_username="browserlab",
@@ -424,6 +438,7 @@ def test_list_and_read_downloads(monkeypatch) -> None:
         },
         command=None,
         network=None,
+        docker_host=None,
         turn_public_host="localhost",
         turn_internal_host="coturn",
         turn_username="browserlab",
@@ -452,6 +467,7 @@ def test_missing_download_raises_not_found(monkeypatch) -> None:
         },
         command=None,
         network=None,
+        docker_host=None,
         turn_public_host="localhost",
         turn_internal_host="coturn",
         turn_username="browserlab",
@@ -480,6 +496,7 @@ def test_capture_screenshot_returns_png_bytes(monkeypatch) -> None:
         },
         command=None,
         network=None,
+        docker_host=None,
         turn_public_host="localhost",
         turn_internal_host="coturn",
         turn_username="browserlab",
@@ -509,6 +526,7 @@ def test_missing_worker_image_requires_prebuild_when_runtime_resolution_disabled
         },
         command=None,
         network=None,
+        docker_host=None,
         turn_public_host="localhost",
         turn_internal_host="coturn",
         turn_username="browserlab",
@@ -537,6 +555,7 @@ def test_missing_worker_image_can_be_built_when_runtime_resolution_enabled(monke
         },
         command=None,
         network=None,
+        docker_host=None,
         turn_public_host="localhost",
         turn_internal_host="coturn",
         turn_username="browserlab",
@@ -554,3 +573,39 @@ def test_missing_worker_image_can_be_built_when_runtime_resolution_enabled(monke
             "rm": True,
         }
     ]
+
+
+def test_launcher_uses_explicit_docker_host_when_configured(monkeypatch) -> None:
+    client = DummyDockerClient()
+    docker_client_calls: list[str] = []
+
+    def fake_docker_client(*, base_url: str):
+        docker_client_calls.append(base_url)
+        return client
+
+    monkeypatch.setattr(launcher_module.docker, "DockerClient", fake_docker_client)
+    monkeypatch.setattr(
+        launcher_module.docker,
+        "from_env",
+        lambda: (_ for _ in ()).throw(AssertionError("from_env should not be used")),
+    )
+
+    launcher = DockerSessionLauncher(
+        worker_definitions={
+            "chromium": WorkerDefinition(
+                image="worker:latest",
+                build_context=None,
+                dockerfile=None,
+            )
+        },
+        command=None,
+        network="browserlab",
+        docker_host="tcp://dockerproxy:2375",
+        turn_public_host="localhost",
+        turn_internal_host="coturn",
+        turn_username="browserlab",
+        turn_password="change-me",
+    )
+
+    assert docker_client_calls == ["tcp://dockerproxy:2375"]
+    assert launcher.client is client

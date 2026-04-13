@@ -1,7 +1,7 @@
 COMPOSE_FILE=infra/compose/docker-compose.yml
 DEV_COMPOSE_FILE=infra/compose/docker-compose.dev.yml
 
-.PHONY: prebuild-workers dev-up dev-down dev-up-live test lint typecheck build smoke
+.PHONY: prebuild-workers dev-up dev-down dev-up-live test lint typecheck build audit smoke test-e2e rc-validate
 
 prebuild-workers:
 	bash infra/scripts/prebuild-workers.sh
@@ -28,5 +28,14 @@ typecheck:
 build:
 	docker compose -f $(COMPOSE_FILE) -f $(DEV_COMPOSE_FILE) run --rm --no-deps frontend pnpm build
 
+audit:
+	bash infra/scripts/dependency-audit.sh
+
 smoke:
 	bash infra/scripts/e2e-smoke.sh
+
+test-e2e:
+	bash infra/scripts/e2e-viewer.sh
+
+rc-validate:
+	bash infra/scripts/rc-validate.sh

@@ -29,6 +29,7 @@ services:
     ports:
       - "8000:8000"
     environment:
+      DOCKER_HOST: ${DOCKER_HOST:-tcp://dockerproxy:2375}
       AUTH_MODE: ${AUTH_MODE:-header}
       AUTOMATION_API_KEYS_JSON: ${AUTOMATION_API_KEYS_JSON:-{}}
       REDIS_URL: redis://redis:6379/0
@@ -72,9 +73,10 @@ services:
       TURN_TLS_ENABLED: ${TURN_TLS_ENABLED:-false}
       SWEEPER_INTERVAL_SECONDS: ${SWEEPER_INTERVAL_SECONDS:-30}
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
       - ../..:/workspace:ro
     depends_on:
+      dockerproxy:
+        condition: service_started
       redis:
         condition: service_healthy
       db:
@@ -85,11 +87,32 @@ services:
       test:
         [
           "CMD-SHELL",
-          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz')\" || exit 1",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz')\" || exit 1",
         ]
       interval: 30s
       timeout: 5s
       retries: 3
+    networks:
+      - browserlab
+
+  dockerproxy:
+    image: tecnativa/docker-socket-proxy:v0.4.2
+    environment:
+      CONTAINERS: 1
+      IMAGES: 1
+      NETWORKS: 1
+      EXEC: 1
+      INFO: 1
+      POST: 1
+      DELETE: 1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    read_only: true
+    tmpfs:
+      - /run
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
     networks:
       - browserlab
 

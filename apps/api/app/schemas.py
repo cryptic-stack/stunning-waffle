@@ -11,6 +11,17 @@ class HealthResponse(BaseModel):
     service: str
 
 
+class ReadinessCheckResponse(BaseModel):
+    ok: bool
+    detail: str | None = None
+
+
+class ReadinessResponse(BaseModel):
+    status: Literal["ok", "not_ready"]
+    service: str
+    checks: dict[str, ReadinessCheckResponse]
+
+
 class ResolutionModel(BaseModel):
     width: int = Field(ge=320, le=7680)
     height: int = Field(ge=320, le=4320)

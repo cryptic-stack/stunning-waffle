@@ -37,6 +37,14 @@ async def lifespan(application: FastAPI):
         namespace=settings.redis_namespace,
     )
     application.state.signaling_registry = SignalingRegistry()
+    application.state.worker_image_validation = {
+        "ok": settings.session_launch_mode != "docker",
+        "detail": (
+            "Image validation skipped outside docker launch mode"
+            if settings.session_launch_mode != "docker"
+            else "Image validation pending"
+        ),
+    }
     application.state.launcher = (
         DockerSessionLauncher(
             worker_definitions={
@@ -90,6 +98,7 @@ async def lifespan(application: FastAPI):
             },
             command=settings.worker_command,
             network=settings.worker_network,
+            docker_host=settings.docker_host,
             turn_public_host=settings.turn_public_host,
             turn_internal_host=settings.turn_internal_host,
             turn_username=settings.turn_username,
@@ -115,6 +124,15 @@ async def lifespan(application: FastAPI):
         and isinstance(application.state.launcher, DockerSessionLauncher)
     ):
         application.state.launcher.validate_worker_images()
+        application.state.worker_image_validation = {
+            "ok": True,
+            "detail": "Configured worker images validated successfully",
+        }
+    elif settings.session_launch_mode == "docker":
+        application.state.worker_image_validation = {
+            "ok": True,
+            "detail": "Worker image validation disabled on startup",
+        }
     application.state.sweeper = SessionSweeper(
         session_factory=session_factory,
         redis_store=application.state.redis_store,
@@ -134,7 +152,9 @@ async def lifespan(application: FastAPI):
         sweeper_task.cancel()
         with suppress(asyncio.CancelledError):
             await sweeper_task
-        application.state.redis_client.close()
+        redis_close = getattr(application.state.redis_client, "close", None)
+        if callable(redis_close):
+            redis_close()
         engine.dispose()
 
 

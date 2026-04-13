@@ -17,7 +17,17 @@ Example response:
 
 ### `GET /readyz`
 
-Returns a readiness response for the API process.
+Returns a deeper readiness response for the API process.
+
+The response includes per-check status for:
+
+- database connectivity
+- Redis connectivity
+- worker image startup validation state
+
+In Docker deployments, worker orchestration is expected to flow through the internal `dockerproxy` service over `DOCKER_HOST`, rather than a raw Docker socket mount into the API container.
+
+The endpoint returns `503` when any readiness check fails.
 
 ### `POST /api/v1/sessions`
 
@@ -159,3 +169,7 @@ Worker images are now expected to exist before the API starts.
 - `WORKER_ALLOW_RUNTIME_IMAGE_RESOLUTION=false` keeps session creation from building or pulling worker images inside the request path
 
 For local development, use the prebuild scripts in `infra/scripts/` before starting the stack.
+
+## Build determinism
+
+The API and Python-based worker images now install from pinned constraints without upgrading `pip` during the Docker build. That keeps the release artifact tied to the pinned base-image digest plus the checked-in constraints files instead of pulling a newer installer at build time.

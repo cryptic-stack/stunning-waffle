@@ -21,6 +21,7 @@
 - Keep the control plane small and separate from future browser workers
 - Use one-worker-per-session as the baseline design
 - Run browser and desktop workers as a non-root user
+- Reach Docker from the API through a restricted socket proxy rather than mounting the raw host socket directly into the control-plane container
 - Keep Chromium's own Linux sandbox enabled inside the worker image
 - Apply CPU, memory, pid, and read-only filesystem limits to worker containers
 - Use tmpfs for browser write paths and runtime scratch space

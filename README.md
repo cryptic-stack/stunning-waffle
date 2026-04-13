@@ -33,6 +33,7 @@ Expected endpoints after startup:
 
 - Frontend: `http://localhost:3000`
 - API health: `http://localhost:8000/healthz`
+- API readiness: `http://localhost:8000/readyz`
 - Sessions API: `http://localhost:8000/api/v1/sessions`
 
 ## Developer workflow
@@ -45,7 +46,9 @@ Expected endpoints after startup:
 - `make lint` runs frontend ESLint and backend Ruff in Docker
 - `make typecheck` runs frontend TypeScript checks in Docker
 - `make build` runs the frontend production build in Docker
+- `make audit` runs JavaScript and pinned-Python dependency audits
 - `make test-e2e` runs the Playwright viewer smoke against a live local stack started in `AUTH_MODE=dev`
+- `make rc-validate` runs the release-candidate validation flow in header-auth mode with browser and desktop smoke coverage
 
 Shell script equivalents live in `infra/scripts/`.
 PowerShell variants are included for Windows hosts.
@@ -111,3 +114,5 @@ Still ahead:
 - Local dev scripts explicitly opt into `AUTH_MODE=dev`
 - Worker images are expected to be prebuilt before the API starts
 - Runtime session creation no longer silently builds or pulls missing worker images unless `WORKER_ALLOW_RUNTIME_IMAGE_RESOLUTION=true`
+- `infra/scripts/rc-validate.sh` and `infra/scripts/rc-validate.ps1` provide a repeatable RC gate for lint, tests, readiness, smoke, and viewer e2e
+- The API now talks to Docker through an internal socket proxy instead of mounting the raw Docker socket directly into the control-plane container
