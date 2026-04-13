@@ -53,6 +53,14 @@ export interface SessionResponse {
   target_url: string;
 }
 
+export interface SessionBootstrapResponse {
+  session: SessionResponse;
+  viewer_token: string;
+  session_api_url: string;
+  signaling_websocket_url: string;
+  rtc_config: RtcConfigResponse;
+}
+
 export interface AutomationSessionBootstrapResponse {
   session: SessionResponse;
   viewer_token: string;

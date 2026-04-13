@@ -13,12 +13,12 @@ import {
   type SessionResponse,
 } from "@foss-browserlab/shared-types";
 import {
-  buildApiUrl,
-  buildWebSocketUrl,
   captureSessionScreenshot,
   createSession,
   deleteSession,
+  downloadSessionFile,
   fetchRtcConfig,
+  getSessionBootstrap,
   listSessionDownloads,
   listSessions,
   syncSessionClipboard,
@@ -326,129 +326,143 @@ function App() {
     activeSessionRef.current = session ?? null;
     setViewerStatus(options?.reconnecting ? "Reconnecting..." : "Connecting...");
 
-    const peerConnection = new RTCPeerConnection({
-      iceTransportPolicy: "relay",
-      iceServers:
-        rtcConfig?.ice_servers.map((server) => ({
+    try {
+      const bootstrap = await getSessionBootstrap(sessionId);
+      activeSessionRef.current = bootstrap.session;
+      setRtcConfig(bootstrap.rtc_config);
+
+      const peerConnection = new RTCPeerConnection({
+        iceTransportPolicy: "relay",
+        iceServers: bootstrap.rtc_config.ice_servers.map((server) => ({
           urls: server.urls,
           username: server.username ?? undefined,
           credential: server.credential ?? undefined,
-        })) ?? [],
-    });
-    const websocket = new WebSocket(buildWebSocketUrl(`/ws/signaling/${sessionId}`));
-    const mediaStream = new MediaStream();
+        })),
+      });
+      const websocket = new WebSocket(bootstrap.signaling_websocket_url);
+      const mediaStream = new MediaStream();
 
-    streamRef.current = mediaStream;
-    peerRef.current = peerConnection;
-    socketRef.current = websocket;
+      streamRef.current = mediaStream;
+      peerRef.current = peerConnection;
+      socketRef.current = websocket;
 
-    if (videoRef.current) {
-      videoRef.current.srcObject = mediaStream;
-    }
-
-    peerConnection.ontrack = (event) => {
-      if (peerRef.current !== peerConnection || streamRef.current !== mediaStream) {
-        return;
-      }
-      if (event.streams[0]) {
-        event.streams[0].getTracks().forEach((track) => {
-          mediaStream.addTrack(track);
-        });
-      } else {
-        mediaStream.addTrack(event.track);
-      }
       if (videoRef.current) {
-        void videoRef.current.play().catch(() => undefined);
+        videoRef.current.srcObject = mediaStream;
       }
-    };
 
-    peerConnection.onicecandidate = (event) => {
-      if (peerRef.current !== peerConnection || socketRef.current !== websocket) {
-        return;
-      }
-      if (!event.candidate || websocket.readyState !== WebSocket.OPEN) {
-        return;
-      }
-      websocket.send(
-        JSON.stringify({
-          type: "ice-candidate",
-          candidate: {
-            candidate: event.candidate.candidate,
-            sdpMid: event.candidate.sdpMid,
-            sdpMLineIndex: event.candidate.sdpMLineIndex,
-          },
-        }),
-      );
-    };
-
-    peerConnection.onconnectionstatechange = () => {
-      if (peerRef.current !== peerConnection || socketRef.current !== websocket) {
-        return;
-      }
-      const nextState =
-        peerConnection.connectionState === "connected"
-          ? "Connected"
-          : peerConnection.connectionState === "failed"
-            ? "Connection failed"
-            : peerConnection.connectionState === "connecting"
-              ? "Connecting..."
-              : peerConnection.connectionState;
-      setViewerStatus(nextState);
-    };
-
-    websocket.onopen = () => {
-      if (socketRef.current !== websocket || viewerAttemptRef.current !== attemptId) {
-        return;
-      }
-      setViewerStatus("Waiting for worker...");
-    };
-
-    websocket.onmessage = async (event) => {
-      if (socketRef.current !== websocket || peerRef.current !== peerConnection || viewerAttemptRef.current !== attemptId) {
-        return;
-      }
-      const payload = JSON.parse(event.data) as {
-        type: string;
-        sdp?: string;
-        candidate?: { candidate?: string; sdpMid?: string; sdpMLineIndex?: number };
-        event?: string;
-        detail?: string;
+      peerConnection.ontrack = (event) => {
+        if (peerRef.current !== peerConnection || streamRef.current !== mediaStream) {
+          return;
+        }
+        if (event.streams[0]) {
+          event.streams[0].getTracks().forEach((track) => {
+            mediaStream.addTrack(track);
+          });
+        } else {
+          mediaStream.addTrack(event.track);
+        }
+        if (videoRef.current) {
+          void videoRef.current.play().catch(() => undefined);
+        }
       };
 
-      if (payload.type === "control" && payload.event === "peer-connected") {
-        await startNegotiation(peerConnection, websocket);
-        return;
-      }
-      if (payload.type === "control" && payload.event) {
-        handleControlMessage(event.data);
-        return;
-      }
-      if (payload.type === "answer" && payload.sdp) {
-        await peerConnection.setRemoteDescription({ type: "answer", sdp: payload.sdp });
-        return;
-      }
-      if (payload.type === "ice-candidate" && payload.candidate?.candidate) {
-        await peerConnection.addIceCandidate(payload.candidate);
-        return;
-      }
-      if (payload.type === "error") {
-        setViewerStatus(payload.detail ?? "Viewer error");
-      }
-    };
+      peerConnection.onicecandidate = (event) => {
+        if (peerRef.current !== peerConnection || socketRef.current !== websocket) {
+          return;
+        }
+        if (!event.candidate || websocket.readyState !== WebSocket.OPEN) {
+          return;
+        }
+        websocket.send(
+          JSON.stringify({
+            type: "ice-candidate",
+            candidate: {
+              candidate: event.candidate.candidate,
+              sdpMid: event.candidate.sdpMid,
+              sdpMLineIndex: event.candidate.sdpMLineIndex,
+            },
+          }),
+        );
+      };
 
-    websocket.onclose = () => {
-      if (socketRef.current !== websocket || viewerAttemptRef.current !== attemptId) {
-        return;
-      }
+      peerConnection.onconnectionstatechange = () => {
+        if (peerRef.current !== peerConnection || socketRef.current !== websocket) {
+          return;
+        }
+        const nextState =
+          peerConnection.connectionState === "connected"
+            ? "Connected"
+            : peerConnection.connectionState === "failed"
+              ? "Connection failed"
+              : peerConnection.connectionState === "connecting"
+                ? "Connecting..."
+                : peerConnection.connectionState;
+        setViewerStatus(nextState);
+      };
+
+      websocket.onopen = () => {
+        if (socketRef.current !== websocket || viewerAttemptRef.current !== attemptId) {
+          return;
+        }
+        setViewerStatus("Waiting for worker...");
+      };
+
+      websocket.onmessage = async (event) => {
+        if (
+          socketRef.current !== websocket ||
+          peerRef.current !== peerConnection ||
+          viewerAttemptRef.current !== attemptId
+        ) {
+          return;
+        }
+        const payload = JSON.parse(event.data) as {
+          type: string;
+          sdp?: string;
+          candidate?: { candidate?: string; sdpMid?: string; sdpMLineIndex?: number };
+          event?: string;
+          detail?: string;
+        };
+
+        if (payload.type === "control" && payload.event === "peer-connected") {
+          await startNegotiation(peerConnection, websocket);
+          return;
+        }
+        if (payload.type === "control" && payload.event) {
+          handleControlMessage(event.data);
+          return;
+        }
+        if (payload.type === "answer" && payload.sdp) {
+          await peerConnection.setRemoteDescription({ type: "answer", sdp: payload.sdp });
+          return;
+        }
+        if (payload.type === "ice-candidate" && payload.candidate?.candidate) {
+          await peerConnection.addIceCandidate(payload.candidate);
+          return;
+        }
+        if (payload.type === "error") {
+          setViewerStatus(payload.detail ?? "Viewer error");
+        }
+      };
+
+      websocket.onclose = () => {
+        if (socketRef.current !== websocket || viewerAttemptRef.current !== attemptId) {
+          return;
+        }
+        setViewerStatus("Disconnected");
+        negotiationStartedRef.current = false;
+        dataChannelRef.current = null;
+        if (!manualDisconnectRef.current && activeSessionRef.current?.session_id === sessionId) {
+          reconnectTimerRef.current = window.setTimeout(() => {
+            void connectViewer(sessionId, { reconnecting: true });
+          }, 1500);
+        }
+      };
+    } catch (error) {
       setViewerStatus("Disconnected");
-      negotiationStartedRef.current = false;
-      dataChannelRef.current = null;
-      if (!manualDisconnectRef.current && activeSessionRef.current?.session_id === sessionId) {
-        reconnectTimerRef.current = window.setTimeout(() => {
-          void connectViewer(sessionId, { reconnecting: true });
-        }, 1500);
-      }
-    };
+      setStatusMessage(error instanceof Error ? error.message : "Failed to connect viewer.");
+      activeSessionRef.current = session ?? null;
+      setActiveSessionId(session?.session_id ?? null);
+    }
   }
 
   function handleControlMessage(rawMessage: string) {
@@ -716,15 +730,20 @@ function App() {
     if (!activeSessionRef.current) {
       return;
     }
-    const href = buildApiUrl(
-      `/api/v1/sessions/${activeSessionRef.current.session_id}/downloads/${encodeURIComponent(filename)}`,
-    );
-    const anchor = document.createElement("a");
-    anchor.href = href;
-    anchor.download = filename;
-    document.body.append(anchor);
-    anchor.click();
-    anchor.remove();
+    void downloadSessionFile(activeSessionRef.current.session_id, filename)
+      .then(({ blob, filename: resolvedFilename }) => {
+        const href = window.URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = href;
+        anchor.download = resolvedFilename;
+        document.body.append(anchor);
+        anchor.click();
+        anchor.remove();
+        window.URL.revokeObjectURL(href);
+      })
+      .catch((error: Error) => {
+        setStatusMessage(error.message);
+      });
   }
 
   const activeSession =
@@ -929,6 +948,7 @@ function App() {
             <div
               ref={viewerSurfaceRef}
               className="viewer-surface"
+              aria-label="Remote viewer surface"
               tabIndex={0}
               onPointerMove={handleViewerPointerMove}
               onPointerUp={handleViewerPointerClick}
@@ -936,7 +956,14 @@ function App() {
               onKeyDown={handleViewerKeyDown}
               onPaste={handleViewerPaste}
             >
-              <video ref={videoRef} autoPlay playsInline muted className="viewer-video" />
+              <video
+                ref={videoRef}
+                aria-label="Remote session video"
+                autoPlay
+                playsInline
+                muted
+                className="viewer-video"
+              />
               {!activeSession && (
                 <div className="viewer-overlay">
                   <p>Launch a session to start streaming the remote browser or desktop here.</p>

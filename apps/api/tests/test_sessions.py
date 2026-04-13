@@ -209,6 +209,31 @@ def test_list_and_ownership_enforcement(client) -> None:
     assert forbidden.status_code == 403
 
 
+def test_session_bootstrap_returns_viewer_token_and_signal_url(client) -> None:
+    session_id = client.post("/api/v1/sessions", json=create_payload()).json()["session_id"]
+
+    bootstrap_response = client.get(f"/api/v1/sessions/{session_id}/bootstrap")
+
+    assert bootstrap_response.status_code == 200
+    body = bootstrap_response.json()
+    assert body["session"]["session_id"] == session_id
+    assert body["viewer_token"]
+    assert body["session_api_url"].endswith(f"/api/v1/sessions/{session_id}")
+    assert f"viewer_token={body['viewer_token']}" in body["signaling_websocket_url"]
+    assert len(body["rtc_config"]["ice_servers"]) == 2
+
+
+def test_session_bootstrap_enforces_ownership(client) -> None:
+    session_id = client.post("/api/v1/sessions", json=create_payload()).json()["session_id"]
+
+    response = client.get(
+        f"/api/v1/sessions/{session_id}/bootstrap",
+        headers={"X-User-Id": "someone-else"},
+    )
+
+    assert response.status_code == 403
+
+
 def test_list_sessions_hides_closed_sessions_by_default(client) -> None:
     session_id = client.post("/api/v1/sessions", json=create_payload()).json()["session_id"]
     assert client.delete(f"/api/v1/sessions/{session_id}").status_code == 200

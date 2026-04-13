@@ -46,6 +46,14 @@ Closed session metadata is retained only for the configured retention window, af
 
 Returns the current session state. If the Redis TTL has elapsed, the session is marked `expired` during the read.
 
+### `GET /api/v1/sessions/{session_id}/bootstrap`
+
+Reissues a fresh session-scoped viewer token for the authenticated owner and returns:
+
+- the session record
+- an absolute signaling WebSocket URL that already includes the viewer token
+- the current RTC ICE server config
+
 ### `DELETE /api/v1/sessions/{session_id}`
 
 Stops and removes the worker container, deletes Redis TTL state, and marks the session terminated in Postgres.
@@ -104,6 +112,7 @@ Returns the ICE server list the frontend uses when creating the WebRTC peer.
 Thin signaling socket for `offer`, `answer`, `ice-candidate`, `control`, and `error` messages.
 
 - viewer connections are authorized by session ownership
+- viewer connections can also use the short-lived `viewer_token` returned by a bootstrap endpoint
 - worker connections are authorized by the internal session worker token
 - media does not transit the API service
 

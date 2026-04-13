@@ -98,6 +98,7 @@ powershell -ExecutionPolicy Bypass -File infra/scripts/dev-down.ps1
 - The scaffold is intentionally container-first because the host may not have Node.js or Python installed.
 - `infra/compose/docker-compose.dev.yml` swaps the frontend container to the dev target with Vite.
 - `AUTH_MODE=header` is the safe default. The dev-up scripts explicitly switch to `AUTH_MODE=dev` so the local UI can work without an auth proxy.
+- If you want to exercise header-mode locally, set `VITE_AUTH_USER_ID` and optionally `VITE_AUTH_USER_EMAIL` / `VITE_AUTH_USER_NAME` before building the frontend so browser requests include those headers.
 - Set `AUTOMATION_API_KEYS_JSON` when you want to exercise the bearer-based automation API locally.
 - For local WebRTC relay, keep `TURN_PUBLIC_HOST=localhost` and `TURN_INTERNAL_HOST=coturn` unless you are testing a different edge host.
 - On Docker Desktop, set `TURN_EXTERNAL_IP` to the host machine's reachable IPv4 address so coturn advertises relay candidates that both the browser and worker container can reach.

@@ -5,6 +5,7 @@ import type {
   FileUploadResponse,
   HealthResponse,
   RtcConfigResponse,
+  SessionBootstrapResponse,
   SessionCreateRequest,
   SessionListResponse,
   SessionResponse,
@@ -26,8 +27,49 @@ export function buildWebSocketUrl(pathname: string, baseUrl?: string): string {
   return httpUrl.toString();
 }
 
+function buildAuthHeaders(): HeadersInit {
+  const viteEnv = (
+    import.meta as ImportMeta & {
+      env?: {
+        VITE_AUTH_USER_ID?: string;
+        VITE_AUTH_USER_EMAIL?: string;
+        VITE_AUTH_USER_NAME?: string;
+      };
+    }
+  ).env;
+  const headers: Record<string, string> = {};
+  if (viteEnv?.VITE_AUTH_USER_ID) {
+    headers["X-User-Id"] = viteEnv.VITE_AUTH_USER_ID;
+  }
+  if (viteEnv?.VITE_AUTH_USER_EMAIL) {
+    headers["X-User-Email"] = viteEnv.VITE_AUTH_USER_EMAIL;
+  }
+  if (viteEnv?.VITE_AUTH_USER_NAME) {
+    headers["X-User-Name"] = viteEnv.VITE_AUTH_USER_NAME;
+  }
+  return headers;
+}
+
+function mergeHeaders(...sources: Array<HeadersInit | undefined>): Headers {
+  const headers = new Headers();
+  for (const source of sources) {
+    if (!source) {
+      continue;
+    }
+    new Headers(source).forEach((value, key) => headers.set(key, value));
+  }
+  return headers;
+}
+
+async function apiFetch(pathname: string, init?: RequestInit, baseUrl?: string): Promise<Response> {
+  return fetch(buildApiUrl(pathname, baseUrl), {
+    ...init,
+    headers: mergeHeaders(buildAuthHeaders(), init?.headers),
+  });
+}
+
 export async function fetchHealthz(baseUrl?: string): Promise<HealthResponse> {
-  const response = await fetch(buildApiUrl("/healthz", baseUrl));
+  const response = await apiFetch("/healthz", undefined, baseUrl);
 
   if (!response.ok) {
     throw new Error(`Health check failed with status ${response.status}`);
@@ -37,7 +79,7 @@ export async function fetchHealthz(baseUrl?: string): Promise<HealthResponse> {
 }
 
 export async function fetchRtcConfig(baseUrl?: string): Promise<RtcConfigResponse> {
-  const response = await fetch(buildApiUrl("/api/v1/rtc/config", baseUrl));
+  const response = await apiFetch("/api/v1/rtc/config", undefined, baseUrl);
 
   if (!response.ok) {
     throw new Error(`RTC config fetch failed with status ${response.status}`);
@@ -47,7 +89,7 @@ export async function fetchRtcConfig(baseUrl?: string): Promise<RtcConfigRespons
 }
 
 export async function listSessions(baseUrl?: string): Promise<SessionListResponse> {
-  const response = await fetch(buildApiUrl("/api/v1/sessions", baseUrl));
+  const response = await apiFetch("/api/v1/sessions", undefined, baseUrl);
 
   if (!response.ok) {
     throw new Error(`Listing sessions failed with status ${response.status}`);
@@ -60,11 +102,15 @@ export async function createSession(
   payload: SessionCreateRequest,
   baseUrl?: string,
 ): Promise<SessionResponse> {
-  const response = await fetch(buildApiUrl("/api/v1/sessions", baseUrl), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+  const response = await apiFetch(
+    "/api/v1/sessions",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+    baseUrl,
+  );
 
   if (!response.ok) {
     throw new Error(`Create session failed with status ${response.status}`);
@@ -78,14 +124,18 @@ export async function createAutomationSession(
   apiKey: string,
   baseUrl?: string,
 ): Promise<AutomationSessionBootstrapResponse> {
-  const response = await fetch(buildApiUrl("/api/v1/automation/sessions", baseUrl), {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
+  const response = await apiFetch(
+    "/api/v1/automation/sessions",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
     },
-    body: JSON.stringify(payload),
-  });
+    baseUrl,
+  );
 
   if (!response.ok) {
     throw new Error(`Create automation session failed with status ${response.status}`);
@@ -99,9 +149,13 @@ export async function getAutomationSession(
   apiKey: string,
   baseUrl?: string,
 ): Promise<SessionResponse> {
-  const response = await fetch(buildApiUrl(`/api/v1/automation/sessions/${sessionId}`, baseUrl), {
-    headers: { Authorization: `Bearer ${apiKey}` },
-  });
+  const response = await apiFetch(
+    `/api/v1/automation/sessions/${sessionId}`,
+    {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    },
+    baseUrl,
+  );
 
   if (!response.ok) {
     throw new Error(`Automation session fetch failed with status ${response.status}`);
@@ -115,11 +169,12 @@ export async function getAutomationBootstrap(
   apiKey: string,
   baseUrl?: string,
 ): Promise<AutomationSessionBootstrapResponse> {
-  const response = await fetch(
-    buildApiUrl(`/api/v1/automation/sessions/${sessionId}/bootstrap`, baseUrl),
+  const response = await apiFetch(
+    `/api/v1/automation/sessions/${sessionId}/bootstrap`,
     {
       headers: { Authorization: `Bearer ${apiKey}` },
     },
+    baseUrl,
   );
 
   if (!response.ok) {
@@ -129,13 +184,30 @@ export async function getAutomationBootstrap(
   return (await response.json()) as AutomationSessionBootstrapResponse;
 }
 
+export async function getSessionBootstrap(
+  sessionId: string,
+  baseUrl?: string,
+): Promise<SessionBootstrapResponse> {
+  const response = await apiFetch(`/api/v1/sessions/${sessionId}/bootstrap`, undefined, baseUrl);
+
+  if (!response.ok) {
+    throw new Error(`Session bootstrap failed with status ${response.status}`);
+  }
+
+  return (await response.json()) as SessionBootstrapResponse;
+}
+
 export async function deleteSession(
   sessionId: string,
   baseUrl?: string,
 ): Promise<SessionResponse> {
-  const response = await fetch(buildApiUrl(`/api/v1/sessions/${sessionId}`, baseUrl), {
-    method: "DELETE",
-  });
+  const response = await apiFetch(
+    `/api/v1/sessions/${sessionId}`,
+    {
+      method: "DELETE",
+    },
+    baseUrl,
+  );
 
   if (!response.ok) {
     throw new Error(`Delete session failed with status ${response.status}`);
@@ -149,11 +221,15 @@ export async function syncSessionClipboard(
   text: string,
   baseUrl?: string,
 ): Promise<ClipboardSyncResponse> {
-  const response = await fetch(buildApiUrl(`/api/v1/sessions/${sessionId}/clipboard`, baseUrl), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text }),
-  });
+  const response = await apiFetch(
+    `/api/v1/sessions/${sessionId}/clipboard`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    },
+    baseUrl,
+  );
 
   if (!response.ok) {
     throw new Error(`Clipboard sync failed with status ${response.status}`);
@@ -170,10 +246,14 @@ export async function uploadSessionFile(
   const formData = new FormData();
   formData.append("upload", file);
 
-  const response = await fetch(buildApiUrl(`/api/v1/sessions/${sessionId}/file-upload`, baseUrl), {
-    method: "POST",
-    body: formData,
-  });
+  const response = await apiFetch(
+    `/api/v1/sessions/${sessionId}/file-upload`,
+    {
+      method: "POST",
+      body: formData,
+    },
+    baseUrl,
+  );
 
   if (!response.ok) {
     throw new Error(`File upload failed with status ${response.status}`);
@@ -186,7 +266,7 @@ export async function listSessionDownloads(
   sessionId: string,
   baseUrl?: string,
 ): Promise<DownloadListResponse> {
-  const response = await fetch(buildApiUrl(`/api/v1/sessions/${sessionId}/downloads`, baseUrl));
+  const response = await apiFetch(`/api/v1/sessions/${sessionId}/downloads`, undefined, baseUrl);
 
   if (!response.ok) {
     throw new Error(`Download listing failed with status ${response.status}`);
@@ -199,7 +279,7 @@ export async function captureSessionScreenshot(
   sessionId: string,
   baseUrl?: string,
 ): Promise<{ blob: Blob; filename: string }> {
-  const response = await fetch(buildApiUrl(`/api/v1/sessions/${sessionId}/screenshot`, baseUrl));
+  const response = await apiFetch(`/api/v1/sessions/${sessionId}/screenshot`, undefined, baseUrl);
 
   if (!response.ok) {
     throw new Error(`Screenshot capture failed with status ${response.status}`);
@@ -210,5 +290,28 @@ export async function captureSessionScreenshot(
   return {
     blob: await response.blob(),
     filename: match?.[1] ?? `${sessionId}-screenshot.png`,
+  };
+}
+
+export async function downloadSessionFile(
+  sessionId: string,
+  filename: string,
+  baseUrl?: string,
+): Promise<{ blob: Blob; filename: string }> {
+  const response = await apiFetch(
+    `/api/v1/sessions/${sessionId}/downloads/${encodeURIComponent(filename)}`,
+    undefined,
+    baseUrl,
+  );
+
+  if (!response.ok) {
+    throw new Error(`Download failed with status ${response.status}`);
+  }
+
+  const disposition = response.headers.get("content-disposition") ?? "";
+  const match = disposition.match(/filename="([^"]+)"/i);
+  return {
+    blob: await response.blob(),
+    filename: match?.[1] ?? filename,
   };
 }

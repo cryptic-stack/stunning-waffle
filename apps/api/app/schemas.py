@@ -61,6 +61,14 @@ class SessionResponse(BaseModel):
     target_url: str
 
 
+class SessionBootstrapResponse(BaseModel):
+    session: SessionResponse
+    viewer_token: str
+    session_api_url: str
+    signaling_websocket_url: str
+    rtc_config: "RtcConfigResponse"
+
+
 class AutomationSessionBootstrapResponse(BaseModel):
     session: SessionResponse
     viewer_token: str

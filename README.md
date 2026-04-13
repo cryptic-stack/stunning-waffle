@@ -45,9 +45,11 @@ Expected endpoints after startup:
 - `make lint` runs frontend ESLint and backend Ruff in Docker
 - `make typecheck` runs frontend TypeScript checks in Docker
 - `make build` runs the frontend production build in Docker
+- `make test-e2e` runs the Playwright viewer smoke against a live local stack started in `AUTH_MODE=dev`
 
 Shell script equivalents live in `infra/scripts/`.
 PowerShell variants are included for Windows hosts.
+Release refresh guidance lives in `docs/runbooks/release-refresh.md`.
 
 ## Repository layout
 
@@ -96,6 +98,12 @@ Still ahead:
 - broader remote TURN validation outside the single-host Compose setup
 - optional post-v1 features such as recording, persistent profiles, and shared sessions
 - broader Browserling parity items such as remote SSH tunneling, browser/OS expansion, recording export, and geo/network controls
+
+## Authenticated frontend notes
+
+- Browser viewers now bootstrap through `GET /api/v1/sessions/{session_id}/bootstrap`, which returns a short-lived viewer token and a ready-to-use signaling WebSocket URL
+- For local header-auth testing without an auth proxy, the frontend build can embed request headers with `VITE_AUTH_USER_ID`, `VITE_AUTH_USER_EMAIL`, and `VITE_AUTH_USER_NAME`
+- In production, prefer a real auth proxy that injects identity upstream instead of baking user headers into the frontend build
 
 ## Release-candidate defaults
 

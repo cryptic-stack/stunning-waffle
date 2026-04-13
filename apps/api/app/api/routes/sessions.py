@@ -1,9 +1,10 @@
 import mimetypes
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import Response
 
+from app.api.bootstrap import build_session_bootstrap_response
 from app.auth import AuthenticatedUser
 from app.config import Settings
 from app.dependencies import (
@@ -18,6 +19,7 @@ from app.schemas import (
     ClipboardSyncResponse,
     DownloadListResponse,
     FileUploadResponse,
+    SessionBootstrapResponse,
     SessionCreateRequest,
     SessionHeartbeatRequest,
     SessionListResponse,
@@ -56,6 +58,25 @@ def get_session(
     user: AuthenticatedUser = Depends(get_current_user),
 ) -> SessionResponse:
     return session_service.get_session(session_id, user)
+
+
+@router.get("/{session_id}/bootstrap", response_model=SessionBootstrapResponse)
+def get_session_bootstrap(
+    request: Request,
+    session_id: str,
+    session_service: SessionService = Depends(get_session_service),
+    settings: Settings = Depends(get_settings),
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> SessionBootstrapResponse:
+    session = session_service.get_session(session_id, user)
+    viewer_token = session_service.issue_viewer_token(session_id, user)
+    return build_session_bootstrap_response(
+        request=request,
+        settings=settings,
+        session=session,
+        viewer_token=viewer_token,
+        session_api_url=f"/api/v1/sessions/{session_id}",
+    )
 
 
 @router.delete("/{session_id}", response_model=SessionResponse)

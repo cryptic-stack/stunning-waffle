@@ -8,6 +8,9 @@ services:
       - "3000:3000"
     environment:
       VITE_API_BASE_URL: http://localhost:8000
+      VITE_AUTH_USER_ID: ${VITE_AUTH_USER_ID:-}
+      VITE_AUTH_USER_EMAIL: ${VITE_AUTH_USER_EMAIL:-}
+      VITE_AUTH_USER_NAME: ${VITE_AUTH_USER_NAME:-}
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000 || exit 1"]
 

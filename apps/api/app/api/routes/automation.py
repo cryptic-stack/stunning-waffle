@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-from urllib.parse import urlencode
-
 from fastapi import APIRouter, Depends, Request, status
 
-from app.api.routes.rtc import build_rtc_config
+from app.api.bootstrap import build_session_bootstrap_response
 from app.auth import AuthenticatedUser
 from app.config import Settings
 from app.dependencies import get_automation_user, get_session_service, get_settings
@@ -79,13 +77,12 @@ def _build_bootstrap_response(
     session: SessionResponse,
     viewer_token: str,
 ) -> AutomationSessionBootstrapResponse:
-    api_base = str(request.base_url).rstrip("/")
-    signaling_base = api_base.replace("https://", "wss://").replace("http://", "ws://")
-    query = urlencode({"role": "viewer", "viewer_token": viewer_token})
-    return AutomationSessionBootstrapResponse(
-        session=session,
-        viewer_token=viewer_token,
-        session_api_url=f"{api_base}/api/v1/automation/sessions/{session.session_id}",
-        signaling_websocket_url=f"{signaling_base}{session.signaling_url}?{query}",
-        rtc_config=build_rtc_config(settings),
+    return AutomationSessionBootstrapResponse.model_validate(
+        build_session_bootstrap_response(
+            request=request,
+            settings=settings,
+            session=session,
+            viewer_token=viewer_token,
+            session_api_url=f"/api/v1/automation/sessions/{session.session_id}",
+        ).model_dump()
     )

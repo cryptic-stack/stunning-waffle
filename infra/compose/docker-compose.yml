@@ -4,6 +4,11 @@ services:
       context: ../..
       dockerfile: apps/frontend/Dockerfile
       target: runtime
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
+        VITE_AUTH_USER_ID: ${VITE_AUTH_USER_ID:-}
+        VITE_AUTH_USER_EMAIL: ${VITE_AUTH_USER_EMAIL:-}
+        VITE_AUTH_USER_NAME: ${VITE_AUTH_USER_NAME:-}
     ports:
       - "3000:80"
     depends_on:
